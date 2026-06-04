@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>IMU Daten - 3D Visualisierung</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #222; color: #fff; text-align: center; margin: 0; padding-top: 20px; }
+        h1 { color: #4caf50; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 95%; margin: 0 auto; }
+        .box { background: #333; padding: 15px; border-radius: 10px; box-shadow: 0px 0px 15px rgba(0,0,0,0.5); }
+        .canvas-container { width: 100%; height: 300px; background: #000; border-radius: 5px; margin-top: 10px; }
+        .wert { color: #00bc40; font-weight: bold; }
+        p { margin: 5px 0; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <h1>3D Live-Demo der Sensordaten</h1>
+    <div class="grid-3">
+        <div class="box">
+            <h2>Kalman-Filter</h2>
+            <p>Roll: <span class="wert" id="roll_k">0.0</span>° | Pitch: <span class="wert" id="pitch_k">0.0</span>° | Yaw: <span class="wert" id="yaw_k">0.0</span>°</p>
+            <div id="canvas1" class="canvas-container"></div>
+        </div>
+        <div class="box">
+            <h2>Komplementärfilter</h2>
+            <p>Roll: <span class="wert" id="roll_c">0.0</span>° | Pitch: <span class="wert" id="pitch_c">0.0</span>° | Yaw: <span class="wert" id="yaw_c">0.0</span>°</p>
+            <div id="canvas2" class="canvas-container"></div>
+        </div>
+        <div class="box">
+            <h2>BNO055</h2>
+            <p>Roll: <span class="wert" id="roll_b">0.0</span>° | Pitch: <span class="wert" id="pitch_b">0.0</span>° | Yaw: <span class="wert" id="yaw_b">0.0</span>°</p>
+            <div id="canvas3" class="canvas-container"></div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        // Funktion zur Erstellung einer 3D-Szene
+        function createScene(containerId) {
+            const container = document.getElementById(containerId);
+            const scene = new THREE.Scene();
+            
+            // Kamera anpassen an Containeer
+            const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.z = 5;
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+
+            // Quader erstellen
+            const geometry = new THREE.BoxGeometry(2, 0.2, 3);
+            const material = new THREE.MeshNormalMaterial(); // Bunte Flächen je nach Winkel
+            const cube = new THREE.Mesh(geometry, material);
+            scene.add(cube);
+
+            
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            // Fenster-Resize abfangen
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+
+            return cube;
+        }
+
+        // Szenen initialisieren
+        const cubeKalman = createScene('canvas1');
+        const cubeKomp = createScene('canvas2');
+        const cubeBNO = createScene('canvas3');
+
+        // Hilfsfunktion: Grad in Bogenmass (Radiant) umrechnen
+        const deg2rad = Math.PI / 180;
+
+        // Socket Daten verarbeiten und auf Würfel anwenden
+        socket.on('sensor_data_kalman', data => {
+            document.getElementById('roll_k').innerText = data.roll_kalman.toFixed(1);
+            document.getElementById('pitch_k').innerText = data.pitch_kalman.toFixed(1);
+            document.getElementById('yaw_k').innerText = data.yaw_kalman.toFixed(1);
+
+            cubeKalman.rotation.x = data.roll_kalman * deg2rad;
+            cubeKalman.rotation.z = -data.pitch_kalman * deg2rad; 
+            cubeKalman.rotation.y = -data.yaw_kalman * deg2rad;
+        });
+
+        socket.on('sensor_data_komp', data => {
+            document.getElementById('roll_c').innerText = data.Roll.toFixed(1);
+            document.getElementById('pitch_c').innerText = data.Pitch.toFixed(1);
+            document.getElementById('yaw_c').innerText = data.Yaw.toFixed(1);
+
+            cubeKomp.rotation.x = data.Roll * deg2rad;
+            cubeKomp.rotation.z = -data.Pitch * deg2rad;
+            cubeKomp.rotation.y = -data.Yaw * deg2rad;
+        });
+
+        socket.on('sensor_data_bno055', data => {
+            document.getElementById('roll_b').innerText = data.Roll_B.toFixed(1);
+            document.getElementById('pitch_b').innerText = data.Pitch_B.toFixed(1);
+            document.getElementById('yaw_b').innerText = data.Yaw_B.toFixed(1);
+
+            cubeBNO.rotation.x = data.Roll_B * deg2rad;
+            cubeBNO.rotation.z = -data.Pitch_B * deg2rad;
+            cubeBNO.rotation.y = -data.Yaw_B * deg2rad;
+        });
+    </script>
+</body>
+</html>
