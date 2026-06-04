@@ -1,0 +1,2 @@
+# IMU-Demonstrationsobjekt_Bachelorarbeit
+Bachelorarbeit
